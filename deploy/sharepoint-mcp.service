@@ -1,0 +1,69 @@
+[Unit]
+Description=sharepoint-mcp: SharePoint MCP server (delegated Graph access)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=exec
+WorkingDirectory=/opt/sharepoint-mcp/app
+ExecStart=/opt/sharepoint-mcp/venv/bin/python /opt/sharepoint-mcp/app/server.py
+Restart=on-failure
+RestartSec=5
+
+# Non-secret settings (tenant, app id, options)
+EnvironmentFile=/etc/sharepoint-mcp/sharepoint-mcp.env
+Environment=HOST=127.0.0.1 PORT=8767 PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1
+
+# Secrets: TPM-sealed files, decrypted by systemd at start into
+# /run/credentials/sharepoint-mcp.service/ (in memory, readable only by this service).
+# client_secret is the Entra app secret; vault_key decrypts the refresh-token
+# vault in the state directory.
+LoadCredentialEncrypted=client_secret:/etc/credstore.encrypted/sharepoint-mcp.client_secret.cred
+LoadCredentialEncrypted=mcp_token:/etc/credstore.encrypted/sharepoint-mcp.mcp_token.cred
+LoadCredentialEncrypted=vault_key:/etc/credstore.encrypted/sharepoint-mcp.vault_key.cred
+
+# Identity: a static system user (not DynamicUser) so that sharepoint-mcp-authorize,
+# run as root, can hand the encrypted vault to the service with stable ownership.
+User=sharepoint-mcp
+Group=sharepoint-mcp
+StateDirectory=sharepoint-mcp
+StateDirectoryMode=0700
+UMask=0077
+
+# Filesystem
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectProc=invisible
+ProcSubset=pid
+
+# Kernel and system
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RemoveIPC=yes
+
+# Privileges
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+
+# Network: IPv4/IPv6 for Entra ID, Graph and the listener, Unix sockets for DNS
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+
+# System calls
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged @resources
+
+[Install]
+WantedBy=multi-user.target

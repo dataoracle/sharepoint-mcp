@@ -1,0 +1,7 @@
+.env
+vault.json.enc
+.vault.*
+__pycache__/
+.venv/
+.DS_Store
+*.pyc
